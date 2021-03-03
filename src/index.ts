@@ -1,61 +1,100 @@
-import { Reshuffle, BaseConnector, EventConfiguration } from 'reshuffle-base-connector'
+import mssql, { ISqlType, Transaction } from 'mssql'
+import { Reshuffle, BaseConnector } from 'reshuffle-base-connector'
 
-export interface _CONNECTOR_NAME_ConnectorConfigOptions {
-  var1: string
-  // ...
-}
+type Options = Record<string, any>
+type inputParam = { name: string, type?: ISqlType, value: any }
 
-export interface _CONNECTOR_NAME_ConnectorEventOptions {
-  option1?: string
-  // ...
-}
+export type Query = (sql: string, params?: any[]) => Promise<any>
+export type Sequence = (query: Query) => Promise<any>
 
-export default class _CONNECTOR_NAME_Connector extends BaseConnector<
-  _CONNECTOR_NAME_ConnectorConfigOptions,
-  _CONNECTOR_NAME_ConnectorEventOptions
-> {
-  // Your class variables
-  var1: string
+export default class MSSQLConnector extends BaseConnector {
+  private client: typeof mssql
+  private pool: mssql.ConnectionPool
 
-  constructor(app: Reshuffle, options?: _CONNECTOR_NAME_ConnectorConfigOptions, id?: string) {
+  constructor(app: Reshuffle, options: Options = {}, id?: string) {
     super(app, options, id)
-    this.var1 = options?.var1 || 'initial value'
-    // ...
-  }
-
-  onStart(): void {
-    // If you need to do something specific on start, otherwise remove this function
-  }
-
-  onStop(): void {
-    // If you need to do something specific on stop, otherwise remove this function
-  }
-
-  // Your events
-  on(
-    options: _CONNECTOR_NAME_ConnectorEventOptions,
-    handler: any,
-    eventId: string,
-  ): EventConfiguration {
-    if (!eventId) {
-      eventId = `_CONNECTOR_NAME_/${options.option1}/${this.id}`
+    this.client = mssql
+    if (!options) {
+      throw new Error('Empty connection config')
     }
-    const event = new EventConfiguration(eventId, this, options)
-    this.eventConfigurations[event.id] = event
-
-    this.app.when(event, handler)
-
-    return event
+    this.pool = new this.client.ConnectionPool(this.configOptions)
   }
 
   // Your actions
-  action1(bar: string): void {
-    // Your implementation here
+  sdk() {
+    return this.client
   }
 
-  action2(foo: string): void {
-    // Your implementation here
+  public async close(): Promise<void> {
+    await this.pool.close()
+  }  
+
+  public async query(sql: string, params?: inputParam[]): Promise<any> {
+    try {
+      if(!this.pool.connected) {
+        await this.pool.connect() 
+      }
+      const request = this.pool.request()
+      if(params && params.length > 0) {
+        params.map( param => {
+          if(param.type) {
+            request.input(param.name, param.type, param.value)
+          } else {
+            request.input(param.name, param.value)
+          }
+        })
+      }
+      const rows = await request.query(sql)
+      return {
+        fields: rows.recordset.columns,
+        rows: rows.recordset,
+        rowCount: rows.recordset.length,
+      }
+    } catch (error) {
+      this.app.getLogger().error(error)
+    }
+  }
+
+  public async transaction(seq: Sequence) {
+    if(!this.pool.connected) {
+      await this.pool.connect() 
+    }
+    const transaction = new this.client.Transaction(this.pool)
+    try {
+      await transaction.begin()
+      // const request = new this.client.Request(transaction)
+      const ret = await seq(this.queryRequest.bind(this, transaction))
+      await transaction.commit()
+      return ret
+    } catch (error) {
+      this.app.getLogger().error(error)
+      await transaction.rollback()
+      throw error
+    }
+  }
+
+  private async queryRequest(transaction: Transaction, sql: string, params?: inputParam[]) {
+    try {
+      const request = new this.client.Request(transaction)      
+      if (params && params.length > 0) {
+        params.map( param => {
+          if(param.type) {
+            request.input(param.name, param.type, param.value)
+          } else {
+            request.input(param.name, param.value)
+          }
+        })
+      }
+      const rows = await request.query(sql)
+      return {
+        fields: rows.recordset.columns,
+        rows: rows.recordset,
+        rowCount: rows.recordset.length,
+      }
+    } catch (error) {
+      throw error
+    }
   }
 }
 
-export { _CONNECTOR_NAME_Connector }
+export { MSSQLConnector }
