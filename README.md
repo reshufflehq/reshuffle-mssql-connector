@@ -21,7 +21,7 @@ const { MSSQLConnector } = require('reshuffle-mssql-connector')
 
   const app = new Reshuffle()
   const mssql = new MSSQLConnector(app, {
-    host: process.env.DB_HOST,
+    server: process.env.DB_HOST,
     user: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME
@@ -57,7 +57,7 @@ _Connector actions_:
 
 const app = new Reshuffle();
 const mssql = new MSSQLConnector(app, {
-  host: process.env.DB_HOST,
+  server: process.env.DB_HOST,
   user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME 
@@ -181,7 +181,7 @@ console.log('rowCount: ',result.rowsAffected[0])
 const sdk = mssql.sdk()
 
 const connection = await mssql.sdk().createConnection({
-  host: process.env.DB_HOST,
+  server: process.env.DB_HOST,
   user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME 
