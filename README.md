@@ -13,7 +13,7 @@ connector to MSSQL databases.
 
 The connector uses [Node MSSQL Client](https://www.npmjs.com/package/mssql) package.
 
-The following example lists all information from the "users" table:
+The following example lists user's information from the "users" table:
 
 ```js
 const { Reshuffle } = require('reshuffle')
@@ -44,8 +44,11 @@ _Connector actions_:
 
 [query](#query) Run a single query on the database
 
-[transaction](#transaction) Run a transaction on the databae
+[transaction](#transaction) Run a transaction on the database
 
+
+[getConenctionPool](#getConenctionPool) Retrieve the `ConnectionPool` for the database
+ 
 [sdk](#sdk) Retrieve the client sdk object with support of Promise API
 
 ##### <a name="configuration"></a>Configuration options
@@ -104,6 +107,7 @@ const age = await mssql.query(
   [{name: 'f_name', value: 'John'}, {name: 'l_name', type: mssql.Text, value: 'Coltrane'}]
 )
 ```
+Note that the type is optional, if you omit type, [node-mssql](https://www.npmjs.com/package/mssql) automatically decides which SQL data type should be used based on JS data type.
 
 This action returns an object with the results of the query, where
 `fields` is an array of all fields metadata, as returned by the query.
@@ -113,8 +117,7 @@ with an `AS` clause. Every element of `rows` uses the names in
 
 
 Note that every call to `query` may use a different database connection.
-You can use the [transaction](#transaction) action if such a guarantee is required.
-
+To ensure a set of queries are all run using the same connection, use the [transaction](#transaction) action.
 
 ##### <a name="transaction"></a>Transaction action
 
@@ -139,22 +142,37 @@ balance:
 ```js
   const accountId = 289
   const change = 1000
+  const accountChangeData = [{name: 'change', value: change}, {name: 'accountId', type: mssql.Int, value: accountId}]
+
   mssql.transaction(async (query) => {
     await query(`
       UPDATE accounts
         SET balance = balance + @change
         WHERE account_id = @accountId
-      `,
-      [{name: 'change', value: change}, {name: 'accountId', type: mssql.Int, value: accountId}],
+      `, accountChangeData,
     )
     await query(`
       INSERT INTO accounts_log(account_id, change, time)
         VALUES (@accountId, @change, current_timestamp)
-      `,
-      [{name: 'change', value: change}, {name: 'accountId', type: mssql.Int, value: accountId}],
+      `, accountChangeData,
     )
   })
 ```
+
+
+##### <a name="getConenctionPool"></a>Get a Conenction Pool for the database
+Get the ConnectionPool that was created when MSSQLConnector was created using the Configuration options
+
+```js
+const pool = mssql.getConenctionPool()
+
+const result = await pool.query('SELECT * FROM Users')
+console.log('rows: ',result.recordset)
+console.log('fields: ',result.recordset.columns)
+console.log('rowCount: ',result.rowsAffected[0])
+
+```
+
 
 ##### <a name="sdk"></a>Full access to the MSSQL Client SDK
 
@@ -172,6 +190,6 @@ const connection = await mssql.sdk().createConnection({
 const result = await connection.execute('SELECT * FROM Users')
 console.log('rows: ',result.recordset)
 console.log('fields: ',result.recordset.columns)
-console.log('rowCount: ',result.rowsAffected)
+console.log('rowCount: ',result.rowsAffected[0])
 
 ```

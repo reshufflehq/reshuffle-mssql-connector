@@ -1,8 +1,8 @@
-import mssql, { ISqlType, Transaction } from 'mssql'
+import mssql, { ISqlType, Request } from 'mssql'
 import { Reshuffle, BaseConnector } from 'reshuffle-base-connector'
 
 type Options = Record<string, any>
-type inputParam = { name: string, type?: ISqlType, value: any }
+type InputParam = { name: string, type?: ISqlType, value: any }
 
 export type Query = (sql: string, params?: any[]) => Promise<any>
 export type Sequence = (query: Query) => Promise<any>
@@ -20,7 +20,15 @@ export default class MSSQLConnector extends BaseConnector {
     this.pool = new this.client.ConnectionPool(this.configOptions)
   }
 
+  onStop(): void {
+    this.close()
+  }
+
   // Your actions
+  getConenctionPool() {
+    return this.pool
+  }
+
   sdk() {
     return this.client
   }
@@ -29,41 +37,20 @@ export default class MSSQLConnector extends BaseConnector {
     await this.pool.close()
   }  
 
-  public async query(sql: string, params?: inputParam[]): Promise<any> {
-    try {
-      if(!this.pool.connected) {
-        await this.pool.connect() 
-      }
-      const request = this.pool.request()
-      if(params && params.length > 0) {
-        params.map( param => {
-          if(param.type) {
-            request.input(param.name, param.type, param.value)
-          } else {
-            request.input(param.name, param.value)
-          }
-        })
-      }
-      const rows = await request.query(sql)
-      return {
-        fields: rows.recordset.columns,
-        rows: rows.recordset,
-        rowCount: rows.recordset.length,
-      }
-    } catch (error) {
-      this.app.getLogger().error(error)
-    }
+  public async query(sql: string, params?: InputParam[]): Promise<any> {
+    await this.ensureConnection()
+    const request = this.pool.request()
+    return await this.queryRequest(request, sql, params)
   }
 
   public async transaction(seq: Sequence) {
-    if(!this.pool.connected) {
-      await this.pool.connect() 
-    }
+    await this.ensureConnection()
+    
     const transaction = new this.client.Transaction(this.pool)
     try {
       await transaction.begin()
-      // const request = new this.client.Request(transaction)
-      const ret = await seq(this.queryRequest.bind(this, transaction))
+      const ret = await seq(this.queryRequest.bind(this, 
+        new this.client.Request(transaction)))
       await transaction.commit()
       return ret
     } catch (error) {
@@ -73,9 +60,18 @@ export default class MSSQLConnector extends BaseConnector {
     }
   }
 
-  private async queryRequest(transaction: Transaction, sql: string, params?: inputParam[]) {
+  private async ensureConnection() {
+    if(!this.pool.connected) {
+      await this.pool.connect() 
+    }
+  }
+
+  private async queryRequest(request: Request, sql: string, params?: InputParam[]) {
     try {
-      const request = new this.client.Request(transaction)      
+      // Clean the paramters to avoid case of: 
+      // "The parameter name has already been declared. Parameter names must be unique"
+      request.parameters = {}
+
       if (params && params.length > 0) {
         params.map( param => {
           if(param.type) {
@@ -87,11 +83,12 @@ export default class MSSQLConnector extends BaseConnector {
       }
       const rows = await request.query(sql)
       return {
-        fields: rows.recordset.columns,
+        fields: rows.recordset === undefined ? '' : rows.recordset.columns,
         rows: rows.recordset,
-        rowCount: rows.recordset.length,
+        rowCount: rows.rowsAffected[0],
       }
     } catch (error) {
+      this.app.getLogger().error(error)
       throw error
     }
   }

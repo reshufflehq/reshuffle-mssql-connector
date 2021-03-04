@@ -18,7 +18,9 @@
   "keywords": [
     "Reshuffle",
     "integrations",
-    "workflows"
+    "workflows",
+    "MSSQL",
+    "database"
   ],
   "author": "Reshuffle",
   "license": "MIT",
