@@ -13,7 +13,7 @@ connector to MSSQL databases.
 
 The connector uses [Node MSSQL Client](https://www.npmjs.com/package/mssql) package.
 
-The following example lists user's information from the "users" table:
+The following example lists user information from the "users" table:
 
 ```js
 const { Reshuffle } = require('reshuffle')
@@ -47,7 +47,7 @@ _Connector actions_:
 [transaction](#transaction) Run a transaction on the database
 
 
-[getConenctionPool](#getConenctionPool) Retrieve the `ConnectionPool` for the database
+[getConnectionPool](#getConnectionPool) Retrieve the `ConnectionPool` for the database
  
 [sdk](#sdk) Retrieve the client sdk object with support of Promise API
 
@@ -160,11 +160,11 @@ balance:
 ```
 
 
-##### <a name="getConenctionPool"></a>Get a Conenction Pool for the database
+##### <a name="getConnectionPool"></a>Get a Connection Pool for the database
 Get the ConnectionPool that was created when MSSQLConnector was created using the Configuration options
 
 ```js
-const pool = mssql.getConenctionPool()
+const pool = mssql.getConnectionPool()
 
 const result = await pool.query('SELECT * FROM Users')
 console.log('rows: ',result.recordset)

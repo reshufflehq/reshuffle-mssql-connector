@@ -24,8 +24,7 @@ export default class MSSQLConnector extends BaseConnector {
     this.close()
   }
 
-  // Your actions
-  getConenctionPool() {
+  getConnectionPool() {
     return this.pool
   }
 
